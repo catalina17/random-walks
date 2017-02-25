@@ -1,10 +1,13 @@
 import networkx as nx
 import numpy as np
 import random
+import scipy.sparse as sparse
 
 from networkx.classes.function import info, number_of_edges, number_of_nodes
 from networkx.readwrite.gpickle import read_gpickle
 from numpy.random import choice, uniform
+from scipy.sparse.linalg import eigs
+from sklearn.preprocessing import normalize
 
 
 def estimate_edges(G, u):
@@ -16,9 +19,26 @@ def estimate_edges(G, u):
     Z_total = 0
     # Degree of start vertex
     deg_u = G.degree(u)
+    # Build the transition matrix P for the simple random walk
+    # w(u,v) <- 1
+    """
+    P = nx.adjacency_matrix(G)
+    P = normalize(P, norm='l1', axis=1)
+    P = sparse.csr_matrix(P)
+    eigenvals, eigenvecs = eigs(P)
+    lambda_2 = sorted(eigenvals)[-2]
+    print "Lambda_1:", max(eigenvals), "Lambda_2:", lambda_2
+    """
+    lambda_2 = 0.91063444938
+    Z_uu = 1.0 / (1.0 - lambda_2)
+    pi_u = float(deg_u) / G.number_of_edges()
+    print pi_u
+    ct_factor = (2 * Z_uu + pi_u - 1.0) / (pi_u ** 2)
 
     # Estimates of the number of edges, one for each return time
     m_est = []
+    # Variance estimates
+    m_var = []
     vertex = u
     while k < 100000:
         # Simple random walk
@@ -32,9 +52,12 @@ def estimate_edges(G, u):
 
             # Add new estimate of m (number of edges)
             curr_est = float(Z_total * deg_u) / (2 * k)
-            if k % 100 == 0:
-                print "Estimate of m at return", k, ":", curr_est
             m_est.append(curr_est)
+            # Add new variance estimate_nodes
+            curr_var = float(deg_u ** 2 / (4 * k)) * ct_factor
+            m_var.append(curr_var)
+            if k % 100 == 0:
+                print "Estimate of m at", k, ":", curr_est, "w/ var:", curr_var
 
         # Increase timestep
         t += 1
@@ -50,6 +73,21 @@ def estimate_nodes(G, u):
     w_u = 1.0
     for v in G.neighbors(u):
         w_u += 1.0 / float(G.degree(v))
+    # Build the transition matrix P for the weighted random walk
+    # w(u,v) <- 1 / deg(u) + 1 / deg(v)
+    """
+    P = sparse.lil_matrix((G.number_of_nodes(), G.number_of_nodes()))
+    for (u, v) in G.edges():
+        P[u,v] = 1.0 / G.degree(u) + 1.0 / G.degree(v)
+        P[v,u] = P[u,v]
+    P = normalize(P, norm='l1', axis=1)
+    P = sparse.csr_matrix(P)
+    eigenvals, eigenvecs = eigs(P)
+    lambda_2 = sorted(eigenvals)[-2]
+    print "Lambda_1:", max(eigenvals), "Lambda_2:", lambda_2
+    """
+    lambda_2 = 0.933389228491
+    Z_uu = 1.0 / (1.0 - lambda_2)
 
     # Estimates of the number of nodes, one for each return time
     n_est = []
@@ -57,7 +95,6 @@ def estimate_nodes(G, u):
     while k < 100000:
         neighbors = G.neighbors(vertex)
         # Compute weighted edges for the random walk from current vertex
-        # w(u,v) <- 1 / deg(u) + 1 / deg(v)
         w_vertex = 1.0 / G.degree(vertex)
         p = [w_vertex + (1.0 / G.degree(n)) for n in neighbors]
         s = sum(p)
@@ -107,6 +144,21 @@ def estimate_triangles(G, u, m):
     """
     edge_weights = np.load('WRW_t.npy').item()
 
+    """
+    # Build the transition matrix P
+    N = G.number_of_nodes()
+    P = sparse.lil_matrix((N, N))
+    for (u, v) in edge_weights.keys():
+        P[u,v] = edge_weights[(u,v)]
+    P = normalize(P, norm='l1', axis=1)
+    P = sparse.csr_matrix(P)
+    eigenvals, eigenvecs = eigs(P)
+    lambda_2 = sorted(eigenvals)[-2]
+    """
+    lambda_2 = 0.937153558736
+    print "Lambda_2:", lambda_2
+    Z_uu = 1.0 / (1.0 - lambda_2)
+
     # Estimates of the number of triangles, one for each return time
     t_est = []
     vertex = u
@@ -145,7 +197,7 @@ if __name__ == '__main__':
 
     print "Nodes:", G.number_of_nodes()
     print "Edges:", G.number_of_edges()
-    print "Triangles:", sum(nx.triangles(G).values()) / 3
+    #print "Triangles:", sum(nx.triangles(G).values()) / 3
 
     max_deg = 0
     u = 0
@@ -156,6 +208,6 @@ if __name__ == '__main__':
     print "Max degree", max_deg,"at node", u, "(belonging to",\
           nx.triangles(G, u), "triangles)"
 
-    #estimate_edges(G, u)
+    estimate_edges(G, u)
     #estimate_triangles(G, u, G.number_of_edges())
-    estimate_nodes(G, u)
+    #estimate_nodes(G, u)
