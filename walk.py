@@ -129,7 +129,7 @@ def estimate_nodes(G, u):
         # Increase timestep
         t += 1
 
-def estimate_triangles(G, u):
+def estimate_triangles(G, u, c):
     # Current timestep
     t = 0
     # Current number of returns to start vertex (u)
@@ -142,7 +142,7 @@ def estimate_triangles(G, u):
     t_u = nx.triangles(G, u)
 
     # Pre-compute the weights for all edges for a faster random walk:
-    # weight(e) <- 1 + triangles(e)
+    # weight(e) <- 1 + c * triangles(e)
     """
     edges = G.edges()
     d1 = dict(((x,y), 1.0) for (x,y) in edges)
@@ -150,10 +150,10 @@ def estimate_triangles(G, u):
     edge_weights = dict(d1.items() + d2.items())
     for (x,y) in edge_weights:
         edge_weights[(x,y)] += \
-            len([n for n in G.neighbors(y) if n in G.neighbors(x)])
-    np.save('WRW_t.npy', edge_weights)
+            c * len([n for n in G.neighbors(y) if n in G.neighbors(x)])
+    np.save('WRW_t' + str(c) + '.npy', edge_weights)
     """
-    edge_weights = np.load('WRW_t.npy').item()
+    edge_weights = np.load('WRW_t' + str(c) + '.npy').item()
 
     """
     # Build the transition matrix P
@@ -165,12 +165,17 @@ def estimate_triangles(G, u):
     P = sparse.csr_matrix(P)
     eigenvals, eigenvecs = eigs(P)
     lambda_2 = sorted(eigenvals)[-2]
+    print "lambda_2_0.1:", lambda_2
     """
-    lambda_2 = 0.937153558736
+    if c == 1.0:
+        lambda_2 = 0.937153558736
+    else:
+        lambda_2 = 0.913799592366
     Z_uu = 1.0 / (1.0 - lambda_2)
     m = G.number_of_edges()
-    ct_numerator = float(G.degree(u) + 2 * nx.triangles(G, u))
-    pi_u = ct_numerator / (2 * m + 6 * sum(nx.triangles(G).values()))
+    ct_numerator = float(deg_u + 2 * c * t_u)
+    t_G = sum(nx.triangles(G).values()) / 3
+    pi_u = ct_numerator / (2 * m + 6 * c * t_G)
     ct_factor = (2 * Z_uu + pi_u - 1.0) / (pi_u ** 2)
 
     # Estimates of the number of triangles, one for each return time
@@ -209,6 +214,44 @@ def estimate_triangles(G, u):
         # Increase timestep
         t += 1
 
+def cycle_nodes(G, u):
+    prev_R_u = 0.0
+    R_u = 0.0
+    deg_u = G.degree(u)
+    k = 0
+    # Pre-compute degrees
+    degs = np.empty((G.number_of_nodes(),), dtype=int)
+    for node in G.nodes():
+        degs[node] = G.degree(node)
+
+    # Estimates of the number of nodes, one for each return time
+    n_est = []
+    # Variance estimates
+    n_var = []
+    # Start vertex
+    vertex = u
+    while k < 100000:
+        # Simple random walk
+        i = random.randint(0, len(G.neighbors(vertex)) - 1)
+        vertex = G.neighbors(vertex)[i]
+        R_u += 1.0 / float(degs[vertex])
+
+        # Check if we have a new return to start vertex
+        if vertex == u:
+            R_u = (prev_R_u * k + R_u) / (k + 1)
+            k += 1
+
+            # Add new estimate of m (number of edges)
+            curr_est = deg_u * R_u
+            n_est.append(curr_est)
+            # Add new variance estimate_nodes
+            #curr_var = math.sqrt(float(deg_u ** 2 / (4 * k)) * ct_factor)
+            #m_var.append(curr_var)
+            if k % 100 == 0:
+                print "Estimate of n at", k, ":", curr_est#, "w/ var:", curr_var
+
+            prev_R_u = R_u
+            R_u = 0.0
 
 if __name__ == '__main__':
 
@@ -229,4 +272,5 @@ if __name__ == '__main__':
 
     #estimate_edges(G, u)
     #estimate_nodes(G, u)
-    estimate_triangles(G, u)
+    #estimate_triangles(G, u, 0.1)
+    cycle_nodes(G, u)
