@@ -1,3 +1,4 @@
+import math
 import networkx as nx
 import numpy as np
 import random
@@ -32,13 +33,13 @@ def estimate_edges(G, u):
     lambda_2 = 0.91063444938
     Z_uu = 1.0 / (1.0 - lambda_2)
     pi_u = float(deg_u) / G.number_of_edges()
-    print pi_u
     ct_factor = (2 * Z_uu + pi_u - 1.0) / (pi_u ** 2)
 
     # Estimates of the number of edges, one for each return time
     m_est = []
     # Variance estimates
     m_var = []
+    # Start vertex
     vertex = u
     while k < 100000:
         # Simple random walk
@@ -54,7 +55,7 @@ def estimate_edges(G, u):
             curr_est = float(Z_total * deg_u) / (2 * k)
             m_est.append(curr_est)
             # Add new variance estimate_nodes
-            curr_var = float(deg_u ** 2 / (4 * k)) * ct_factor
+            curr_var = math.sqrt(float(deg_u ** 2 / (4 * k)) * ct_factor)
             m_var.append(curr_var)
             if k % 100 == 0:
                 print "Estimate of m at", k, ":", curr_est, "w/ var:", curr_var
@@ -88,20 +89,27 @@ def estimate_nodes(G, u):
     """
     lambda_2 = 0.933389228491
     Z_uu = 1.0 / (1.0 - lambda_2)
+    pi_u = w_u / float(2 * G.number_of_nodes())
+    ct_factor = (2 * Z_uu + pi_u - 1.0) / (pi_u ** 2)
+    # Pre-compute degrees
+    degs = np.empty((G.number_of_nodes(),), dtype=int)
+    for node in G.nodes():
+        degs[node] = G.degree(node)
 
     # Estimates of the number of nodes, one for each return time
     n_est = []
+    # Variance estimates
+    n_var = []
+    # Start vertex
     vertex = u
     while k < 100000:
         neighbors = G.neighbors(vertex)
         # Compute weighted edges for the random walk from current vertex
-        w_vertex = 1.0 / G.degree(vertex)
-        p = [w_vertex + (1.0 / G.degree(n)) for n in neighbors]
-        s = sum(p)
-        p = [el/s for el in p]
+        w_vertex = 1.0 / degs[vertex]
+        p = np.array([w_vertex + (1.0 / degs[n]) for n in neighbors])
 
         # Choose next vertex
-        new_vertex = np.random.choice(neighbors, p=p)
+        new_vertex = np.random.choice(neighbors, p=p/sum(p))
         vertex = new_vertex
 
         # Check if we have a new return to start vertex
@@ -111,14 +119,17 @@ def estimate_nodes(G, u):
 
             # Add new estimate of m (number of edges)
             curr_est = float(Z_total * w_u) / (2 * k)
-            if k % 100 == 0:
-                print "Estimate of n at return ", k, ":", curr_est
             n_est.append(curr_est)
+            # Add new variance estimate_nodes
+            curr_var = math.sqrt(float(w_u ** 2 / (4 * k)) * ct_factor)
+            n_var.append(curr_var)
+            if k % 100 == 0:
+                print "Estimate of n at", k, ":", curr_est, "w/ var:", curr_var
 
         # Increase timestep
         t += 1
 
-def estimate_triangles(G, u, m):
+def estimate_triangles(G, u):
     # Current timestep
     t = 0
     # Current number of returns to start vertex (u)
@@ -156,22 +167,26 @@ def estimate_triangles(G, u, m):
     lambda_2 = sorted(eigenvals)[-2]
     """
     lambda_2 = 0.937153558736
-    print "Lambda_2:", lambda_2
     Z_uu = 1.0 / (1.0 - lambda_2)
+    m = G.number_of_edges()
+    ct_numerator = float(G.degree(u) + 2 * nx.triangles(G, u))
+    pi_u = ct_numerator / (2 * m + 6 * sum(nx.triangles(G).values()))
+    ct_factor = (2 * Z_uu + pi_u - 1.0) / (pi_u ** 2)
 
     # Estimates of the number of triangles, one for each return time
     t_est = []
+    # Variance estimates
+    t_var = []
+    # Start vertex
     vertex = u
     while k < 100000:
         neighbors = G.neighbors(vertex)
         # Gather relevant weighted edges for the random walk
-        p = [edge_weights[(x,y)] \
-                 for (x,y) in zip([vertex] * len(neighbors), neighbors)]
-        s = sum(p)
-        p = [el/s for el in p]
+        p = np.array([edge_weights[(x,y)] \
+                      for (x,y) in zip([vertex] * len(neighbors), neighbors)])
 
         # Choose next vertex
-        new_vertex = np.random.choice(neighbors, p=p)
+        new_vertex = np.random.choice(neighbors, p=p/sum(p))
         vertex = new_vertex
 
         # Check if we have a new return to start vertex
@@ -183,9 +198,13 @@ def estimate_triangles(G, u, m):
             curr_est = max(0,
                            float(Z_total * (deg_u + 2 * t_u)) / (6 * k) - \
                            float(m) / 3)
-            if k % 100 == 0:
-                print "Estimate of t at return", k, ":", curr_est
             t_est.append(curr_est)
+            # Add new variance estimate_nodes
+            curr_var = math.sqrt(float(ct_numerator ** 2 / (36 * k)) *
+                                 ct_factor)
+            t_var.append(curr_var)
+            if k % 100 == 0:
+                print "Estimate of t at", k, ":", curr_est, "w/ var:", curr_var
 
         # Increase timestep
         t += 1
@@ -208,6 +227,6 @@ if __name__ == '__main__':
     print "Max degree", max_deg,"at node", u, "(belonging to",\
           nx.triangles(G, u), "triangles)"
 
-    estimate_edges(G, u)
-    #estimate_triangles(G, u, G.number_of_edges())
+    #estimate_edges(G, u)
     #estimate_nodes(G, u)
+    estimate_triangles(G, u)
