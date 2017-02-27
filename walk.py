@@ -400,10 +400,11 @@ def evaluation(G, u):
 
     # Estimate m - cycle formula
     jobs = []
-    for i in range(1, 6):
+    for i in [1,2,4,6,7]:
         thread = threading.Thread(target=cycle_edges, args=(G, u, i,))
         jobs.append(thread)
         thread.start()
+    """
     # Estimate n - cycle formula
     jobs = []
     for i in range(1, 6):
@@ -416,10 +417,15 @@ def evaluation(G, u):
         thread = threading.Thread(target=cycle_triangles, args=(G, u, i,))
         jobs.append(thread)
         thread.start()
+    """
+
 
 if __name__ == '__main__':
 
+    # Load generated graph
     G = read_gpickle('HTCM.gpickle')
+    # Load Google graph
+    #G = read_gpickle('Google.gpickle')
 
     print "Nodes:", G.number_of_nodes()
     print "Edges:", G.number_of_edges()

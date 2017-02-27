@@ -1,10 +1,12 @@
 import networkx as nx
 import numpy as np
 import random
+import re
 
 from networkx.classes.function import info, number_of_edges, number_of_nodes
 from networkx.generators.classic import complete_graph, empty_graph
 from networkx.readwrite.gpickle import write_gpickle
+from networkx.readwrite.edgelist import read_edgelist
 from numpy.random import choice, uniform
 
 
@@ -80,21 +82,22 @@ def Google_graph():
         vs = [int(num) for num in re.findall(r'\d+', line)]
         edges.append((vs[0], vs[1]))
 
-    # Create the Google graph
-    G = empty_graph()
-    G.add_edges_from(edges)
-    # Check graph is correct
-    assert G.number_of_edges() == m
-    assert G.number_of_nodes() == n
+    # Create the Google graph and return the largest connected subgraph
+    # (otherwise the random walks won't work)
+    G = read_edgelist('web-Google.txt', comments='#')
+    G.name = "Google_graph"
+    G = max(nx.connected_component_subgraphs(G), key=len)
+    return G
 
 if __name__ == '__main__':
 
     num_nodes = 600000
     p = 0.6
     r = 3
-
     G = extended_prefential_attachment(num_nodes, p, r)
-    print "Number of edges in G: "   , str(number_of_edges(G)),\
-          " , Number of nodes in G: ", str(number_of_nodes(G))
-
+    print info(G)
     write_gpickle(G, "HTCM.gpickle")
+
+    G = Google_graph()
+    print info(G)
+    write_gpickle(G, "Google.gpickle")
