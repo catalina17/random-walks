@@ -253,6 +253,92 @@ def cycle_nodes(G, u):
             prev_R_u = R_u
             R_u = 0.0
 
+def cycle_edges(G, u):
+    prev_R_u = 0.0
+    R_u = 0.0
+
+    # Quantities needed for estimating variance of R_u
+    deg_u = G.degree(u)
+    pi_u = deg_u / (2.0 * G.number_of_edges())
+    lambda_2 = 0.91063444938 # taken from estimate_edges()
+    Z_vv = 1.0 / (1.0 - lambda_2)
+    ct_factor = (2 * Z_vv + pi_u - 1.0) / (pi_u ** 2)
+
+    k = 0
+
+    # Estimates of the number of edges, one for each return time
+    m_est = []
+    # Variance Estimates
+    m_var = []
+    # Start vertex
+    vertex = u
+    while k < 100000:
+        # Simple random walk
+        i = random.randint(0, len(G.neighbors(vertex)) - 1)
+        vertex = G.neighbors(vertex)[i]
+        R_u += 1.0
+
+        # Check if we have a new return to start vertex
+        if vertex == u:
+            R_u = (prev_R_u * k + R_u) / (k + 1)
+            k += 1
+
+            # Add new estimate of m (number of edges)
+            curr_est = 0.5 * deg_u * R_u
+            m_est.append(curr_est)
+            # Add new variance estimate_nodes
+            curr_var = math.sqrt(ct_factor / k)
+            #m_var.append(curr_var)
+            if k % 100 == 0:
+                print "Estimate of m at", k, ":", curr_est, "w/ var:", curr_var
+
+            prev_R_u = R_u
+            R_u = 0.0
+
+def cycle_triangles(G, u):
+    prev_R_u = 0.0
+    R_u = 0.0
+    deg_u = G.degree(u)
+    k = 0
+    # Pre-compute degrees
+    degs = np.empty((G.number_of_nodes(),), dtype=float)
+    for node in G.nodes():
+        degs[node] = G.degree(node)
+    # Pre-compute triangles
+    ts = np.empty((G.number_of_nodes(),), dtype=float)
+    for node in G.nodes():
+        ts[node] = nx.triangles(G, node)
+
+    # Estimates of the number of edges, one for each return time
+    t_est = []
+    # Variance Estimates
+    t_var = []
+    # Start vertex
+    vertex = u
+    while k < 100000:
+        # Simple random walk
+        i = random.randint(0, len(G.neighbors(vertex)) - 1)
+        vertex = G.neighbors(vertex)[i]
+        R_u += ts[vertex] / degs[vertex]
+
+        # Check if we have a new return to start vertex
+        if vertex == u:
+            R_u = (prev_R_u * k + R_u) / (k + 1)
+            k += 1
+
+            # Add new estimate of m (number of edges)
+            curr_est = 1.0 / 3.0 * deg_u * R_u
+            t_est.append(curr_est)
+            # Add new variance estimate_nodes
+            #curr_var = math.sqrt(float(deg_u ** 2 / (4 * k)) * ct_factor)
+            #m_var.append(curr_var)
+            if k % 100 == 0:
+                print "Estimate of m at", k, ":", curr_est#, "w/ var:", curr_var
+
+            prev_R_u = R_u
+            R_u = 0.0
+
+
 if __name__ == '__main__':
 
     G = read_gpickle('HTCM.gpickle')
@@ -273,4 +359,6 @@ if __name__ == '__main__':
     #estimate_edges(G, u)
     #estimate_nodes(G, u)
     #estimate_triangles(G, u, 0.1)
-    cycle_nodes(G, u)
+    #cycle_nodes(G, u)
+    #cycle_edges(G, u)
+    #cycle_triangles(G, u)
