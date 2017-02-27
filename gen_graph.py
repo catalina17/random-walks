@@ -3,7 +3,7 @@ import numpy as np
 import random
 
 from networkx.classes.function import info, number_of_edges, number_of_nodes
-from networkx.generators.classic import complete_graph
+from networkx.generators.classic import complete_graph, empty_graph
 from networkx.readwrite.gpickle import write_gpickle
 from numpy.random import choice, uniform
 
@@ -66,6 +66,26 @@ def extended_prefential_attachment(num_nodes, p, r):
             print(info(G))
     return G
 
+def Google_graph():
+    # Data provided in the graph file
+    n = 875713
+    m = 5105039
+
+    # Parse the edges
+    edges = []
+    f = open('web-Google.txt', 'r')
+    lines = f.readlines()[4:]
+    assert len(lines) == m
+    for line in lines:
+        vs = [int(num) for num in re.findall(r'\d+', line)]
+        edges.append((vs[0], vs[1]))
+
+    # Create the Google graph
+    G = empty_graph()
+    G.add_edges_from(edges)
+    # Check graph is correct
+    assert G.number_of_edges() == m
+    assert G.number_of_nodes() == n
 
 if __name__ == '__main__':
 

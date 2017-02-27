@@ -3,6 +3,7 @@ import networkx as nx
 import numpy as np
 import random
 import scipy.sparse as sparse
+import threading
 
 from networkx.classes.function import info, number_of_edges, number_of_nodes
 from networkx.readwrite.gpickle import read_gpickle
@@ -11,7 +12,7 @@ from scipy.sparse.linalg import eigs
 from sklearn.preprocessing import normalize
 
 
-def estimate_edges(G, u):
+def estimate_edges(G, u, run):
     # Current timestep
     t = 0
     # Current number of returns to start vertex (u)
@@ -37,8 +38,10 @@ def estimate_edges(G, u):
 
     # Estimates of the number of edges, one for each return time
     m_est = []
-    # Variance estimates
-    m_var = []
+    # Std. dev estimates using Z_uu
+    m_std_Zuu = []
+    # Return times
+    Tus = []
     # Start vertex
     vertex = u
     while k < 100000:
@@ -48,22 +51,32 @@ def estimate_edges(G, u):
 
         # Check if we have a new return to start vertex
         if vertex == u:
+            # Add new return time
+            Tus.append(t - Z_total)
             Z_total = t
             k += 1
 
             # Add new estimate of m (number of edges)
             curr_est = float(Z_total * deg_u) / (2 * k)
             m_est.append(curr_est)
-            # Add new variance estimate_nodes
-            curr_var = math.sqrt(float(deg_u ** 2 / (4 * k)) * ct_factor)
-            m_var.append(curr_var)
+            # Add new std. dev
+            curr_std_Zuu = math.sqrt(float(deg_u ** 2 / (4 * k)) * ct_factor)
+            m_std_Zuu.append(curr_std_Zuu)
             if k % 100 == 0:
-                print "Estimate of m at", k, ":", curr_est, "w/ var:", curr_var
+                print "Estimate of m at", k, ":", curr_est, "std:", curr_std_Zuu
 
         # Increase timestep
         t += 1
 
-def estimate_nodes(G, u):
+    m_est = np.array(m_est)
+    m_std_Zuu = np.array(m_std_Zuu)
+    Tus = np.array(Tus)
+
+    m_est.tofile('m_est_' + str(run) + '.npy')
+    m_std_Zuu.tofile('m_std_Zuu_' + str(run) + '.npy')
+    Tus.tofile('Tus' + str(run) + '.npy')
+
+def estimate_nodes(G, u, run):
     # Current timestep
     t = 0
     # Current number of returns to start vertex (u)
@@ -98,8 +111,10 @@ def estimate_nodes(G, u):
 
     # Estimates of the number of nodes, one for each return time
     n_est = []
-    # Variance estimates
-    n_var = []
+    # Variance estimates using Z_uu
+    n_std_Zuu = []
+    # Return times
+    Tus = []
     # Start vertex
     vertex = u
     while k < 100000:
@@ -114,6 +129,8 @@ def estimate_nodes(G, u):
 
         # Check if we have a new return to start vertex
         if vertex == u:
+            # Add new return time
+            Tus.append(t - Z_total)
             Z_total = t
             k += 1
 
@@ -121,15 +138,23 @@ def estimate_nodes(G, u):
             curr_est = float(Z_total * w_u) / (2 * k)
             n_est.append(curr_est)
             # Add new variance estimate_nodes
-            curr_var = math.sqrt(float(w_u ** 2 / (4 * k)) * ct_factor)
-            n_var.append(curr_var)
+            curr_std_Zuu = math.sqrt(float(w_u ** 2 / (4 * k)) * ct_factor)
+            n_std_Zuu.append(curr_std_Zuu)
             if k % 100 == 0:
-                print "Estimate of n at", k, ":", curr_est, "w/ var:", curr_var
+                print "Estimate of n at", k, ":", curr_est, "std:", curr_std_Zuu
 
         # Increase timestep
         t += 1
 
-def estimate_triangles(G, u, c):
+    n_est = np.array(n_est)
+    n_std_Zuu = np.array(n_std_Zuu)
+    Tus = np.array(Tus)
+
+    n_est.tofile('n_est_' + str(run) + '.npy')
+    n_std_Zuu.tofile('n_std_Zuu_' + str(run) + '.npy')
+    Tus.tofile('Tus' + str(run) + '.npy')
+
+def estimate_triangles(G, u, c, run):
     # Current timestep
     t = 0
     # Current number of returns to start vertex (u)
@@ -181,7 +206,9 @@ def estimate_triangles(G, u, c):
     # Estimates of the number of triangles, one for each return time
     t_est = []
     # Variance estimates
-    t_var = []
+    t_std_Zuu = []
+    # Return times
+    Tus = []
     # Start vertex
     vertex = u
     while k < 100000:
@@ -196,6 +223,8 @@ def estimate_triangles(G, u, c):
 
         # Check if we have a new return to start vertex
         if vertex == u:
+            # Add new return time
+            Tus.append(t - Z_total)
             Z_total = t
             k += 1
 
@@ -205,55 +234,24 @@ def estimate_triangles(G, u, c):
                            float(m) / 3)
             t_est.append(curr_est)
             # Add new variance estimate_nodes
-            curr_var = math.sqrt(float(ct_numerator ** 2 / (36 * k)) *
-                                 ct_factor)
-            t_var.append(curr_var)
+            curr_std_Zuu = math.sqrt(float(ct_numerator ** 2 / (36 * k)) *
+                                     ct_factor)
+            t_std_Zuu.append(curr_std_Zuu)
             if k % 100 == 0:
-                print "Estimate of t at", k, ":", curr_est, "w/ var:", curr_var
+                print "Estimate of t at", k, ":", curr_est, "std:", curr_std_Zuu
 
         # Increase timestep
         t += 1
 
-def cycle_nodes(G, u):
-    prev_R_u = 0.0
-    R_u = 0.0
-    deg_u = G.degree(u)
-    k = 0
-    # Pre-compute degrees
-    degs = np.empty((G.number_of_nodes(),), dtype=int)
-    for node in G.nodes():
-        degs[node] = G.degree(node)
+    t_est = np.array(t_est)
+    t_std_Zuu = np.array(t_std_Zuu)
+    Tus = np.array(Tus)
 
-    # Estimates of the number of nodes, one for each return time
-    n_est = []
-    # Variance estimates
-    n_var = []
-    # Start vertex
-    vertex = u
-    while k < 100000:
-        # Simple random walk
-        i = random.randint(0, len(G.neighbors(vertex)) - 1)
-        vertex = G.neighbors(vertex)[i]
-        R_u += 1.0 / float(degs[vertex])
+    t_est.tofile('t_est_' + str(run) + str(c) + '.npy')
+    t_std_Zuu.tofile('t_std_Zuu_' + str(run) + str(c) + '.npy')
+    Tus.tofile('Tus' + str(run) + str(c) + '.npy')
 
-        # Check if we have a new return to start vertex
-        if vertex == u:
-            R_u = (prev_R_u * k + R_u) / (k + 1)
-            k += 1
-
-            # Add new estimate of m (number of edges)
-            curr_est = deg_u * R_u
-            n_est.append(curr_est)
-            # Add new variance estimate_nodes
-            #curr_var = math.sqrt(float(deg_u ** 2 / (4 * k)) * ct_factor)
-            #m_var.append(curr_var)
-            if k % 100 == 0:
-                print "Estimate of n at", k, ":", curr_est#, "w/ var:", curr_var
-
-            prev_R_u = R_u
-            R_u = 0.0
-
-def cycle_edges(G, u):
+def cycle_edges(G, u, run):
     prev_R_u = 0.0
     R_u = 0.0
 
@@ -269,7 +267,7 @@ def cycle_edges(G, u):
     # Estimates of the number of edges, one for each return time
     m_est = []
     # Variance Estimates
-    m_var = []
+    m_std = []
     # Start vertex
     vertex = u
     while k < 100000:
@@ -287,15 +285,57 @@ def cycle_edges(G, u):
             curr_est = 0.5 * deg_u * R_u
             m_est.append(curr_est)
             # Add new variance estimate_nodes
-            curr_var = math.sqrt(ct_factor / k)
-            #m_var.append(curr_var)
+            curr_std = math.sqrt(ct_factor / k)
+            m_std.append(curr_std)
             if k % 100 == 0:
-                print "Estimate of m at", k, ":", curr_est, "w/ var:", curr_var
+                print "Estimate of m at", k, ":", curr_est, "w/ std:", curr_std
 
             prev_R_u = R_u
             R_u = 0.0
 
-def cycle_triangles(G, u):
+    m_est = np.array(m_est)
+    m_std = np.array(m_std)
+    m_est.tofile('m_est_' + str(run) + '_cycle.npy')
+    m_std.tofile('m_std_' + str(run) + '_cycle.npy')
+
+def cycle_nodes(G, u, run):
+    prev_R_u = 0.0
+    R_u = 0.0
+    deg_u = G.degree(u)
+    k = 0
+    # Pre-compute degrees
+    degs = np.empty((G.number_of_nodes(),), dtype=int)
+    for node in G.nodes():
+        degs[node] = G.degree(node)
+
+    # Estimates of the number of nodes, one for each return time
+    n_est = []
+    # Start vertex
+    vertex = u
+    while k < 100000:
+        # Simple random walk
+        i = random.randint(0, len(G.neighbors(vertex)) - 1)
+        vertex = G.neighbors(vertex)[i]
+        R_u += 1.0 / float(degs[vertex])
+
+        # Check if we have a new return to start vertex
+        if vertex == u:
+            R_u = (prev_R_u * k + R_u) / (k + 1)
+            k += 1
+
+            # Add new estimate of m (number of edges)
+            curr_est = deg_u * R_u
+            n_est.append(curr_est)
+            if k % 100 == 0:
+                print "Estimate of n at", k, ":", curr_est
+
+            prev_R_u = R_u
+            R_u = 0.0
+
+    n_est = np.array(n_est)
+    n_est.tofile('n_est_' + str(run) + '_cycle.npy')
+
+def cycle_triangles(G, u, run):
     prev_R_u = 0.0
     R_u = 0.0
     deg_u = G.degree(u)
@@ -311,8 +351,6 @@ def cycle_triangles(G, u):
 
     # Estimates of the number of edges, one for each return time
     t_est = []
-    # Variance Estimates
-    t_var = []
     # Start vertex
     vertex = u
     while k < 100000:
@@ -329,15 +367,55 @@ def cycle_triangles(G, u):
             # Add new estimate of m (number of edges)
             curr_est = 1.0 / 3.0 * deg_u * R_u
             t_est.append(curr_est)
-            # Add new variance estimate_nodes
-            #curr_var = math.sqrt(float(deg_u ** 2 / (4 * k)) * ct_factor)
-            #m_var.append(curr_var)
             if k % 100 == 0:
-                print "Estimate of m at", k, ":", curr_est#, "w/ var:", curr_var
+                print "Estimate of t at", k, ":", curr_est
 
             prev_R_u = R_u
             R_u = 0.0
 
+    t_est = np.array(t_est)
+    t_est.tofile('t_est_' + str(run) + '_cycle.npy')
+
+def evaluation(G, u):
+    """
+    # Estimate m - random walk
+    jobs = []
+    for i in [1,3,5]:
+        thread = threading.Thread(target=estimate_edges, args=(G, u, i,))
+        jobs.append(thread)
+        thread.start()
+    # Estimate n - random walk
+    jobs = []
+    for i in range(1, 6):
+        thread = threading.Thread(target=estimate_nodes, args=(G, u, i,))
+        jobs.append(thread)
+        thread.start()
+    # Estimate t - random walk
+    jobs = []
+    for i in range(1, 6):
+        thread = threading.Thread(target=estimate_triangles, args=(G, u, 1.0, i,))
+        jobs.append(thread)
+        thread.start()
+    """
+
+    # Estimate m - cycle formula
+    jobs = []
+    for i in range(1, 6):
+        thread = threading.Thread(target=cycle_edges, args=(G, u, i,))
+        jobs.append(thread)
+        thread.start()
+    # Estimate n - cycle formula
+    jobs = []
+    for i in range(1, 6):
+        thread = threading.Thread(target=cycle_nodes, args=(G, u, i,))
+        jobs.append(thread)
+        thread.start()
+    # Estimate t - cycle formula
+    jobs = []
+    for i in range(1, 6):
+        thread = threading.Thread(target=cycle_triangles, args=(G, u, i,))
+        jobs.append(thread)
+        thread.start()
 
 if __name__ == '__main__':
 
@@ -362,3 +440,4 @@ if __name__ == '__main__':
     #cycle_nodes(G, u)
     #cycle_edges(G, u)
     #cycle_triangles(G, u)
+    evaluation(G, u)
