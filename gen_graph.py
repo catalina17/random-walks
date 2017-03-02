@@ -1,13 +1,12 @@
 import networkx as nx
 import numpy as np
 import random
-import re
 
 from networkx.classes.function import info, number_of_edges, number_of_nodes
-from networkx.generators.classic import complete_graph, empty_graph
+from networkx.generators.classic import complete_graph
 from networkx.readwrite.gpickle import write_gpickle
 from networkx.readwrite.edgelist import read_edgelist
-from numpy.random import choice, uniform
+from numpy.random import uniform
 
 
 def extended_prefential_attachment(num_nodes, p, r):
@@ -69,8 +68,8 @@ def extended_prefential_attachment(num_nodes, p, r):
     return G
 
 def Google_graph():
-    # Create the Google graph and return the largest connected subgraph
-    # (otherwise the random walks won't work)
+    # Create the Google graph object and return the largest connected subgraph
+    # (otherwise the random walks will not work)
     G = read_edgelist('web-Google.txt', comments='#')
     G = max(nx.connected_component_subgraphs(G), key=len)
     G.name = "Google_graph"

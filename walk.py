@@ -3,13 +3,12 @@ import networkx as nx
 import numpy as np
 import random
 import scipy.sparse as sparse
-import threading
 
 from networkx.classes.function import info, number_of_edges, number_of_nodes
 from networkx.linalg.graphmatrix import adjacency_matrix
 from networkx.readwrite.gpickle import read_gpickle
 from networkx.relabel import convert_node_labels_to_integers
-from numpy.random import choice, uniform
+from numpy.random import choice
 from scipy.sparse.linalg import eigs
 from sklearn.preprocessing import normalize
 
@@ -23,16 +22,15 @@ def estimate_edges(G, u, run):
     Z_total = 0
     # Degree of start vertex
     deg_u = G.degree(u)
+
+    """
     # Build the transition matrix P for the simple random walk
     # w(u,v) <- 1
     P = adjacency_matrix(G)
     P = normalize(P, norm='l1', axis=1)
-    #P = sparse.csr_matrix(P)
     eigenvals, eigenvecs = eigs(P, k=2, which='LM')
     lambda_2 = sorted(eigenvals)[-2]
-    print eigenvals
-
-    return
+    """
 
     lambda_2 = 0.91063444938 # generated graph
     Z_uu = 1.0 / (1.0 - lambda_2)
@@ -102,7 +100,6 @@ def estimate_nodes(G, u, run):
     P = sparse.csr_matrix(P)
     eigenvals, eigenvecs = eigs(P)
     lambda_2 = sorted(eigenvals)[-2]
-    print "Lambda_1:", max(eigenvals), "Lambda_2:", lambda_2
     """
 
     #lambda_2 = 0.933389228491 # generated graph
@@ -141,10 +138,10 @@ def estimate_nodes(G, u, run):
             Z_total = t
             k += 1
 
-            # Add new estimate of m (number of edges)
+            # Add new estimate of n
             curr_est = float(Z_total * w_u) / (2 * k)
             n_est.append(curr_est)
-            # Add new variance estimate_nodes
+            # Add new std. dev.
             curr_std_Zuu = math.sqrt(float(w_u ** 2 / (4 * k)) * ct_factor)
             n_std_Zuu.append(curr_std_Zuu)
             if k % 100 == 0:
@@ -185,7 +182,7 @@ def estimate_triangles(G, u, c, run):
             c * len([n for n in G.neighbors(y) if n in G.neighbors(x)])
     np.save('G_WRW_t' + str(c) + '.npy', edge_weights)
     """
-    edge_weights = np.load('G_WRW_t' + str(c) + '.npy').item()
+    edge_weights = np.load('WRW_t' + str(c) + '.npy').item()
 
     """
     # Build the transition matrix P
@@ -193,12 +190,10 @@ def estimate_triangles(G, u, c, run):
     P = sparse.lil_matrix((N, N))
     for (u, v) in edge_weights.keys():
         P[u,v] = edge_weights[(u,v)]
-    print "Built transition matrix"
     P = normalize(P, norm='l1', axis=1)
     P = sparse.csr_matrix(P)
-    print "Normalised transition matrix"
     eigenvals, eigenvecs = eigs(P, k=2, which='LM')
-    print eigenvals
+    lambda_2 = sorted(eigenvals)[0]
     """
 
     if c == 1.0:
@@ -237,12 +232,12 @@ def estimate_triangles(G, u, c, run):
             Z_total = t
             k += 1
 
-            # Add new estimate of m (number of edges)
+            # Add new estimate of t (number of triangles)
             curr_est = max(0,
-                           float(Z_total * (deg_u + 2 * t_u)) / (6 * k) - \
+                           float(Z_total * (deg_u + 2 * c * t_u)) / (6 * k) - \
                            float(m) / 3)
             t_est.append(curr_est)
-            # Add new variance estimate_nodes
+            # Add new std. dev.
             curr_std_Zuu = math.sqrt(float(ct_numerator ** 2 / (36 * k)) *
                                      ct_factor)
             t_std_Zuu.append(curr_std_Zuu)
@@ -387,6 +382,7 @@ def cycle_triangles(G, u, run):
     t_est.tofile('t_est_' + str(run) + '_cycle.npy')
 
 def evaluation(G, u):
+
     # Estimate m - random walk
     for i in range(1,11):
         estimate_edges(G, u, i)
@@ -397,7 +393,7 @@ def evaluation(G, u):
 
     # Estimate t - random walk
     #for i in range(1, 11):
-    for i in range(1,11):
+    for i in range(4,11):
         estimate_triangles(G, u, 0.1, i)
         estimate_triangles(G, u, 1.0, i)
 
@@ -417,20 +413,34 @@ def evaluation(G, u):
 if __name__ == '__main__':
 
     # Load generated graph
-    #G = read_gpickle('HTCM.gpickle')
+    G1 = read_gpickle('HTCM.gpickle')
+
     # Load Google graph
-    G = read_gpickle('Google.gpickle')
-    G = convert_node_labels_to_integers(G)
-    print info(G)
-    #print "Triangles:", sum(nx.triangles(G).values()) / 3
+    G2 = read_gpickle('Google.gpickle')
+    G2 = convert_node_labels_to_integers(G)
 
-    max_deg = 0
-    u = 0
-    for node in G.nodes():
-        if max_deg < G.degree(node):
-            max_deg = G.degree(node)
+    print info(G1)
+    print "Triangles in gen. graph:", sum(nx.triangles(G1).values()) / 3
+
+    print info(G2)
+    print "Triangles in Google graph:", sum(nx.triangles(G2).values()) / 3
+
+    max_deg1 = 0, max_deg2 = 0
+    u1 = 0, u2 = 0
+    for node in G1.nodes():
+        if max_deg < G1.degree(node):
+            max_deg = G1.degree(node)
             u = node
-    print "Max degree", max_deg,"at node", u, "(belonging to",\
-          nx.triangles(G, u), "triangles)"
+    print "Gen.: Max degree", max_deg, "at node", u, "(belonging to",\
+          nx.triangles(G1, u), "triangles)"
 
-    evaluation(G, u)
+    for node in G2.nodes():
+        if max_deg < G2.degree(node):
+            max_deg = G2.degree(node)
+            u = node
+    print "Google: Max degree", max_deg, "at node", u, "(belonging to",\
+          nx.triangles(G2, u), "triangles)"
+
+
+    evaluation(G1, u)
+    evaluation(G2, u)
