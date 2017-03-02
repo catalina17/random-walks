@@ -69,24 +69,11 @@ def extended_prefential_attachment(num_nodes, p, r):
     return G
 
 def Google_graph():
-    # Data provided in the graph file
-    n = 875713
-    m = 5105039
-
-    # Parse the edges
-    edges = []
-    f = open('web-Google.txt', 'r')
-    lines = f.readlines()[4:]
-    assert len(lines) == m
-    for line in lines:
-        vs = [int(num) for num in re.findall(r'\d+', line)]
-        edges.append((vs[0], vs[1]))
-
     # Create the Google graph and return the largest connected subgraph
     # (otherwise the random walks won't work)
     G = read_edgelist('web-Google.txt', comments='#')
-    G.name = "Google_graph"
     G = max(nx.connected_component_subgraphs(G), key=len)
+    G.name = "Google_graph"
     return G
 
 if __name__ == '__main__':
