@@ -23,16 +23,13 @@ def estimate_edges(G, u, run):
     # Degree of start vertex
     deg_u = G.degree(u)
 
-    """
     # Build the transition matrix P for the simple random walk
     # w(u,v) <- 1
     P = adjacency_matrix(G)
     P = normalize(P, norm='l1', axis=1)
     eigenvals, eigenvecs = eigs(P, k=2, which='LM')
-    lambda_2 = sorted(eigenvals)[-2]
-    """
+    lambda_2 = float(sorted(eigenvals)[-2])
 
-    lambda_2 = 0.91063444938 # generated graph
     Z_uu = 1.0 / (1.0 - lambda_2)
     pi_u = float(deg_u) / G.number_of_edges()
     ct_factor = (2 * Z_uu + pi_u - 1.0) / (pi_u ** 2)
@@ -77,6 +74,7 @@ def estimate_edges(G, u, run):
     m_std_Zuu.tofile('m_std_Zuu_' + str(run) + '.npy')
     Tus.tofile('Tus' + str(run) + '.npy')
 
+
 def estimate_nodes(G, u, run):
     # Current timestep
     t = 0
@@ -89,7 +87,6 @@ def estimate_nodes(G, u, run):
     for v in G.neighbors(u):
         w_u += 1.0 / float(G.degree(v))
 
-    """
     # Build the transition matrix P for the weighted random walk
     # w(u,v) <- 1 / deg(u) + 1 / deg(v)
     P = sparse.lil_matrix((G.number_of_nodes(), G.number_of_nodes()))
@@ -99,8 +96,7 @@ def estimate_nodes(G, u, run):
     P = normalize(P, norm='l1', axis=1)
     P = sparse.csr_matrix(P)
     eigenvals, eigenvecs = eigs(P)
-    lambda_2 = sorted(eigenvals)[-2]
-    """
+    lambda_2 = float(sorted(eigenvals)[-2])
 
     #lambda_2 = 0.933389228491 # generated graph
     lambda_2 = 0.999876848583 # Google graph
@@ -138,7 +134,7 @@ def estimate_nodes(G, u, run):
             Z_total = t
             k += 1
 
-            # Add new estimate of n
+            # Add new estimate of n (number of nodes)
             curr_est = float(Z_total * w_u) / (2 * k)
             n_est.append(curr_est)
             # Add new std. dev.
@@ -158,6 +154,7 @@ def estimate_nodes(G, u, run):
     n_std_Zuu.tofile('n_std_Zuu_' + str(run) + '.npy')
     Tus.tofile('n_Tus' + str(run) + '.npy')
 
+
 def estimate_triangles(G, u, c, run):
     # Current timestep
     t = 0
@@ -170,7 +167,6 @@ def estimate_triangles(G, u, c, run):
     # Triangles containing start vertex
     t_u = nx.triangles(G, u)
 
-    """
     # Pre-compute the weights for all edges for a faster random walk:
     # weight(e) <- 1 + c * triangles(e)
     edges = G.edges()
@@ -180,11 +176,8 @@ def estimate_triangles(G, u, c, run):
     for (x,y) in edge_weights:
         edge_weights[(x,y)] += \
             c * len([n for n in G.neighbors(y) if n in G.neighbors(x)])
-    np.save('G_WRW_t' + str(c) + '.npy', edge_weights)
-    """
-    edge_weights = np.load('WRW_t' + str(c) + '.npy').item()
+    np.save('WRW_t' + str(c) + '.npy', edge_weights)
 
-    """
     # Build the transition matrix P
     N = G.number_of_nodes()
     P = sparse.lil_matrix((N, N))
@@ -193,13 +186,8 @@ def estimate_triangles(G, u, c, run):
     P = normalize(P, norm='l1', axis=1)
     P = sparse.csr_matrix(P)
     eigenvals, eigenvecs = eigs(P, k=2, which='LM')
-    lambda_2 = sorted(eigenvals)[0]
-    """
+    lambda_2 = float(sorted(eigenvals)[0])
 
-    if c == 1.0:
-        lambda_2 = 0.99997238
-    else:
-        lambda_2 = 0.9998246
     Z_uu = 1.0 / (1.0 - lambda_2)
     m = G.number_of_edges()
     ct_numerator = float(deg_u + 2 * c * t_u)
@@ -241,7 +229,7 @@ def estimate_triangles(G, u, c, run):
             curr_std_Zuu = math.sqrt(float(ct_numerator ** 2 / (36 * k)) *
                                      ct_factor)
             t_std_Zuu.append(curr_std_Zuu)
-            if k % 1000 == 0:
+            if k % 100 == 0:
                 print "Estimate of t at", k, ":", curr_est, "std:", curr_std_Zuu
 
         # Increase timestep
@@ -254,6 +242,7 @@ def estimate_triangles(G, u, c, run):
     t_est.tofile('t_est_' + str(run) + str(c) + '.npy')
     t_std_Zuu.tofile('t_std_Zuu_' + str(run) + str(c) + '.npy')
     Tus.tofile('t_Tus' + str(run) + str(c) + '.npy')
+
 
 def cycle_edges(G, u, run):
     prev_R_u = 0.0
@@ -289,7 +278,7 @@ def cycle_edges(G, u, run):
             # Add new estimate of m (number of edges)
             curr_est = 0.5 * deg_u * R_u
             m_est.append(curr_est)
-            # Add new variance estimate_nodes
+            # Add new std. dev.
             curr_std = math.sqrt(ct_factor / k)
             m_std.append(curr_std)
             if k % 100 == 0:
@@ -303,11 +292,13 @@ def cycle_edges(G, u, run):
     m_est.tofile('m_est_' + str(run) + '_cycle.npy')
     m_std.tofile('m_std_' + str(run) + '_cycle.npy')
 
+
 def cycle_nodes(G, u, run):
     prev_R_u = 0.0
     R_u = 0.0
     deg_u = G.degree(u)
     k = 0
+
     # Pre-compute degrees
     degs = np.empty((G.number_of_nodes(),), dtype=int)
     for node in G.nodes():
@@ -328,7 +319,7 @@ def cycle_nodes(G, u, run):
             R_u = (prev_R_u * k + R_u) / (k + 1)
             k += 1
 
-            # Add new estimate of m (number of edges)
+            # Add new estimate of n (number of nodes)
             curr_est = deg_u * R_u
             n_est.append(curr_est)
             if k % 100 == 0:
@@ -340,11 +331,13 @@ def cycle_nodes(G, u, run):
     n_est = np.array(n_est)
     n_est.tofile('n_est_' + str(run) + '_cycle.npy')
 
+
 def cycle_triangles(G, u, run):
     prev_R_u = 0.0
     R_u = 0.0
     deg_u = G.degree(u)
     k = 0
+
     # Pre-compute degrees
     degs = np.empty((G.number_of_nodes(),), dtype=float)
     for node in G.nodes():
@@ -354,7 +347,7 @@ def cycle_triangles(G, u, run):
     for node in G.nodes():
         ts[node] = nx.triangles(G, node)
 
-    # Estimates of the number of edges, one for each return time
+    # Estimates of the number of triangles, one for each return time
     t_est = []
     # Start vertex
     vertex = u
@@ -369,7 +362,7 @@ def cycle_triangles(G, u, run):
             R_u = (prev_R_u * k + R_u) / (k + 1)
             k += 1
 
-            # Add new estimate of m (number of edges)
+            # Add new estimate of t (number of triangles)
             curr_est = 1.0 / 3.0 * deg_u * R_u
             t_est.append(curr_est)
             if k % 100 == 0:
@@ -381,8 +374,8 @@ def cycle_triangles(G, u, run):
     t_est = np.array(t_est)
     t_est.tofile('t_est_' + str(run) + '_cycle.npy')
 
-def evaluation(G, u):
 
+def evaluation(G, u):
     # Estimate m - random walk
     for i in range(1,11):
         estimate_edges(G, u, i)
@@ -392,8 +385,7 @@ def evaluation(G, u):
         estimate_nodes(G, u, i)
 
     # Estimate t - random walk
-    #for i in range(1, 11):
-    for i in range(4,11):
+    for i in range(1, 11):
         estimate_triangles(G, u, 0.1, i)
         estimate_triangles(G, u, 1.0, i)
 
@@ -410,37 +402,35 @@ def evaluation(G, u):
         cycle_triangles(G, u, i)
 
 
-if __name__ == '__main__':
+def load_graph(gen=True):
 
-    # Load generated graph
-    G1 = read_gpickle('HTCM.gpickle')
+    if gen:
+        G = read_gpickle('HTCM.gpickle')
+    else:
+        G = read_gpickle('Google.gpickle')
+        G = convert_node_labels_to_integers(G)
 
-    # Load Google graph
-    G2 = read_gpickle('Google.gpickle')
-    G2 = convert_node_labels_to_integers(G)
-
-    print info(G1)
-    print "Triangles in gen. graph:", sum(nx.triangles(G1).values()) / 3
-
-    print info(G2)
-    print "Triangles in Google graph:", sum(nx.triangles(G2).values()) / 3
+    print info(G)
+    print "Triangles in gen. graph:", sum(nx.triangles(G).values()) / 3
 
     max_deg1 = 0, max_deg2 = 0
     u1 = 0, u2 = 0
-    for node in G1.nodes():
-        if max_deg < G1.degree(node):
-            max_deg = G1.degree(node)
+    for node in G.nodes():
+        if max_deg < G.degree(node):
+            max_deg = G.degree(node)
             u = node
-    print "Gen.: Max degree", max_deg, "at node", u, "(belonging to",\
-          nx.triangles(G1, u), "triangles)"
+    print "Max degree", max_deg, "at node", u, "(belonging to",\
+          nx.triangles(G, u), "triangles)"
 
-    for node in G2.nodes():
-        if max_deg < G2.degree(node):
-            max_deg = G2.degree(node)
-            u = node
-    print "Google: Max degree", max_deg, "at node", u, "(belonging to",\
-          nx.triangles(G2, u), "triangles)"
+    return G
 
+
+if __name__ == '__main__':
+
+    # Load generated graph
+    G1 = load_graph()
+    # Load Google graph
+    G2 = load_graph(gen=False)
 
     evaluation(G1, u)
     evaluation(G2, u)

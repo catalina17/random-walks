@@ -24,6 +24,8 @@ def extended_prefential_attachment(num_nodes, p, r):
     p : float
         Probability of doing preferential attachment; with 1 - p, we add an edge
         to a random neighbour.
+    r : int
+        Number of edges to add for every new vertex.
 
     Returns
     -------
@@ -67,13 +69,14 @@ def extended_prefential_attachment(num_nodes, p, r):
             print(info(G))
     return G
 
+
 def Google_graph():
     # Create the Google graph object and return the largest connected subgraph
-    # (otherwise the random walks will not work)
     G = read_edgelist('web-Google.txt', comments='#')
     G = max(nx.connected_component_subgraphs(G), key=len)
     G.name = "Google_graph"
     return G
+
 
 if __name__ == '__main__':
 
